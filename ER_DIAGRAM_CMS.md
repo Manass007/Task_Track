@@ -10,33 +10,42 @@ An **entity** in a CMS is any distinct object or concept that needs to be stored
 
 ### USER
 
-Represents anyone who interacts with the CMS backend — authors, editors, admins.
+Represents anyone who interacts with the CMS backend — admins and authors only.
 
-| Attribute     | Description                          |
-| ------------- | ------------------------------------ |
-| user_id       | Unique identifier (Primary Key)      |
-| username      | Display name                         |
-| email         | Login email                          |
-| password_hash | Encrypted password                   |
-| role          | admin / editor / author / subscriber |
-| created_at    | Account creation date                |
+| Attribute     | Type / Constraint        | Description                  |
+| ------------- | ------------------------ | ---------------------------- |
+| user_id       | PK                       | Unique identifier            |
+| username      | VARCHAR                  | Display name                 |
+| email         | VARCHAR · **UNIQUE**     | Login email — must be unique |
+| password_hash | TEXT                     | Encrypted password           |
+| role          | ENUM (`admin`, `author`) | Access level                 |
+| created_at    | TIMESTAMPTZ              | Account creation timestamp   |
+| created_by    | INT · FK → USER          | Who created this user        |
+| updated_at    | TIMESTAMPTZ              | Last update timestamp        |
+| updated_by    | INT · FK → USER          | Who last updated this user   |
+
+> `role` is an **ENUM** with only two values: `admin` and `author`. Editor and subscriber have been removed.
 
 ---
 
 ### POST
 
-The central entity — a blog article or piece of content.
+The central entity — a blog article with an optional media attachment.
 
-| Attribute    | Description                                           |
-| ------------ | ----------------------------------------------------- |
-| post_id      | Unique identifier (Primary Key)                       |
-| user_id      | Who wrote it (Foreign Key → USER)                     |
-| category_id  | Which category it belongs to (Foreign Key → CATEGORY) |
-| title        | Post headline                                         |
-| body         | Main content (rich text)                              |
-| slug         | URL-friendly version of title                         |
-| status       | draft / published / archived                          |
-| published_at | Publication timestamp                                 |
+| Attribute    | Type / Constraint           | Description                         |
+| ------------ | --------------------------- | ----------------------------------- |
+| post_id      | PK                          | Unique identifier                   |
+| user_id      | FK → USER                   | Who wrote this post                 |
+| category_id  | FK → CATEGORY               | Which category it belongs to        |
+| title        | VARCHAR                     | Post headline                       |
+| body         | TEXT                        | Main content (rich text)            |
+| status       | ENUM (`draft`, `published`) | Publication state                   |
+| media_url    | TEXT                        | URL of attached image or media file |
+| published_at | TIMESTAMPTZ                 | Publication timestamp               |
+| created_at   | TIMESTAMPTZ                 | Creation timestamp                  |
+| created_by   | INT · FK → USER             | Who created this post               |
+| updated_at   | TIMESTAMPTZ                 | Last update timestamp               |
+| updated_by   | INT · FK → USER             | Who last updated this post          |
 
 ---
 
@@ -44,12 +53,14 @@ The central entity — a blog article or piece of content.
 
 Organizes posts into broad topics (e.g., "Shoes", "Skincare Tips").
 
-| Attribute   | Description                     |
-| ----------- | ------------------------------- |
-| category_id | Unique identifier (Primary Key) |
-| name        | Category label                  |
-| slug        | URL-friendly name               |
-| description | Short summary                   |
+| Attribute   | Type / Constraint    | Description                     |
+| ----------- | -------------------- | ------------------------------- |
+| category_id | PK                   | Unique identifier               |
+| name        | VARCHAR · **UNIQUE** | Category label — must be unique |
+| created_at  | TIMESTAMPTZ          | Creation timestamp              |
+| created_by  | INT · FK → USER      | Who created this category       |
+| updated_at  | TIMESTAMPTZ          | Last update timestamp           |
+| updated_by  | INT · FK → USER      | Who last updated this category  |
 
 ---
 
@@ -67,45 +78,19 @@ Fine-grained labels attached to posts (e.g., "summer", "sale", "trending").
 
 ### COMMENT
 
-Reader responses on a published post.
+Reader responses on a published post, categorized directly via CATEGORY.
 
-| Attribute  | Description                                   |
-| ---------- | --------------------------------------------- |
-| comment_id | Unique identifier (Primary Key)               |
-| post_id    | Which post it belongs to (Foreign Key → POST) |
-| user_id    | Who left the comment (Foreign Key → USER)     |
-| body       | Comment text                                  |
-| status     | pending / approved / spam                     |
-| created_at | Submission timestamp                          |
-
----
-
-### MEDIA
-
-Images, videos, or files uploaded and used within posts.
-
-| Attribute | Description                     |
-| --------- | ------------------------------- |
-| media_id  | Unique identifier (Primary Key) |
-| user_id   | Uploader (Foreign Key → USER)   |
-| file_url  | Public URL of the file          |
-| type      | image / video / pdf             |
-| alt_text  | Accessibility description       |
-
----
-
-### PRODUCT _(Retail-specific)_
-
-A product from the store that can be referenced/featured inside blog posts.
-
-| Attribute     | Description                     |
-| ------------- | ------------------------------- |
-| product_id    | Unique identifier (Primary Key) |
-| name          | Product name                    |
-| price         | Product price                   |
-| sku           | Stock keeping unit              |
-| thumbnail_url | Product image                   |
-| product_url   | Link to the product page        |
+| Attribute   | Type / Constraint | Description                        |
+| ----------- | ----------------- | ---------------------------------- |
+| comment_id  | PK                | Unique identifier                  |
+| post_id     | FK → POST         | Which post this comment belongs to |
+| user_id     | FK → USER         | Who left the comment               |
+| category_id | FK → CATEGORY     | Comment category                   |
+| body        | TEXT              | Comment text                       |
+| created_at  | TIMESTAMPTZ       | Submission timestamp               |
+| created_by  | INT · FK → USER   | Who created this comment           |
+| updated_at  | TIMESTAMPTZ       | Last update timestamp              |
+| updated_by  | INT · FK → USER   | Who last updated this comment      |
 
 ---
 
@@ -119,72 +104,66 @@ A **relationship** describes how two entities are connected. There are three typ
 
 ---
 
-| Relationship    | Type | Description                                                          |
-| --------------- | ---- | -------------------------------------------------------------------- |
-| USER → POST     | 1:N  | One user writes many posts                                           |
-| POST → CATEGORY | N:1  | Many posts belong to one category                                    |
-| POST ↔ TAG      | M:N  | A post has many tags; a tag applies to many posts                    |
-| POST → COMMENT  | 1:N  | One post has many comments                                           |
-| USER → COMMENT  | 1:N  | One user leaves many comments                                        |
-| USER → MEDIA    | 1:N  | One user uploads many media files                                    |
-| POST ↔ PRODUCT  | M:N  | A post can feature many products; a product can appear in many posts |
+## 3. Relationships Between Entities
 
-> M:N relationships are resolved using **junction tables**: `POST_TAG` and `POST_PRODUCT`.
+| Relationship                              | Type | Description                                 |
+| ----------------------------------------- | ---- | ------------------------------------------- |
+| USER → POST                               | 1:N  | One user (author / admin) writes many posts |
+| POST → CATEGORY                           | N:1  | Many posts belong to one category           |
+| POST → COMMENT                            | 1:N  | One post has many comments                  |
+| USER → COMMENT                            | 1:N  | One user leaves many comments               |
+| COMMENT → CATEGORY                        | N:1  | Many comments belong to one category        |
+| USER → USER (`created_by` / `updated_by`) | N:1  | Self-referencing audit trail on all tables  |
 
 ---
 
 ## 3. Entity Relationship Diagram — Retail Website Blog
 
 ```
-┌─────────────────────┐          ┌─────────────────────┐
-│        USER         │          │      CATEGORY       │
-│─────────────────────│          │─────────────────────│
-│ PK  user_id         │          │ PK  category_id     │
-│     username        │          │     name            │
-│     email           │          │     slug            │
-│     role            │          └──────────┬──────────┘
-└────────┬────────────┘                     │ 1
-         │ 1                                │
-         │                                  │ belongs to
-  writes │                                  │
-         │ N                                │ N
-         ▼                                  ▼
-┌─────────────────────────────────────────────────────┐
-│                        POST                         │
-│─────────────────────────────────────────────────────│
-│ PK  post_id                                         │
-│ FK  user_id                                         │
-│ FK  category_id                                     │
-│     title  │  body  │  slug  │  status  │  published_at │
-└──────┬──────────────────────┬───────────────────────┘
-       │ 1                    │ 1
-       │                      │
-  has  │              features│
-       │ N                    │ N (via POST_PRODUCT)
-       ▼                      ▼
-┌──────────────────┐   ┌─────────────────────┐
-│     COMMENT      │   │      PRODUCT        │
-│──────────────────│   │─────────────────────│
-│ PK  comment_id   │   │ PK  product_id      │
-│ FK  post_id      │   │     name            │
-│ FK  user_id      │   │     price           │
-│     body         │   │     sku             │
-│     status       │   │     thumbnail_url   │
-└──────────────────┘   └─────────────────────┘
-
-
-POST ◄──────────────────────────────► TAG
-      M  (via POST_TAG junction)   N
-      │                             │
-      │  POST_TAG                   │
-      │  ┌────────────┐             │
-      └─►│  post_id   │◄────────────┘
-         │  tag_id    │
-         └────────────┘
-
-
-USER ──────────────────────────────► MEDIA
-  1    uploads                     N
+┌───────────────────────────────────┐
+│               USER                │
+│───────────────────────────────────│
+│ PK  user_id                       │
+│     username                      │
+│ UQ  email                         │
+│     password_hash                 │
+│     role  ENUM(admin, author)     │
+│     created_at   TIMESTAMPTZ      │
+│ FK  created_by   → USER           │
+│     updated_at   TIMESTAMPTZ      │
+│ FK  updated_by   → USER           │
+└──────────────┬────────────────────┘
+               │ 1
+               │ writes
+               │ N
+               ▼
+┌───────────────────────────────────┐       ┌──────────────────────────┐
+│               POST                │  N    │        CATEGORY          │
+│───────────────────────────────────│◄─────►│──────────────────────────│
+│ PK  post_id                       │belongs│ PK  category_id          │
+│ FK  user_id       → USER          │  to 1 │ UQ  name                 │
+│ FK  category_id   → CATEGORY      │       │     created_at TIMESTAMPTZ│
+│     title                         │       │ FK  created_by → USER    │
+│     body                          │       │     updated_at TIMESTAMPTZ│
+│     status ENUM(draft, published) │       │ FK  updated_by → USER    │
+│     media_url                     │       └─────────────┬────────────┘
+│     published_at  TIMESTAMPTZ     │                     │ 1
+│     created_at    TIMESTAMPTZ     │                     │ categorizes
+│ FK  created_by    → USER          │                     │ N
+│     updated_at    TIMESTAMPTZ     │                     ▼
+│ FK  updated_by    → USER          │       ┌──────────────────────────┐
+└──────────────┬────────────────────┘  1    │        COMMENT           │
+               │ has               ──────►  │──────────────────────────│
+               │ N                          │ PK  comment_id           │
+               └───────────────────────────►│ FK  post_id    → POST    │
+                                            │ FK  user_id    → USER    │
+                                            │ FK  category_id→ CATEGORY│
+                                            │     body                 │
+                                            │     created_at TIMESTAMPTZ│
+                                            │ FK  created_by → USER    │
+                                            │     updated_at TIMESTAMPTZ│
+                                            │ FK  updated_by → USER    │
+                                            └──────────────────────────┘
 ```
 
 ---
@@ -192,28 +171,40 @@ USER ─────────────────────────
 ### Relationship Summary
 
 ```
-USER  ──(writes)──►  POST  ──(belongs to)──►  CATEGORY
- │                    │
- │(leaves)            │(has)         (tagged with)
- ▼                    ▼           POST ◄────────► TAG
-COMMENT ◄──(on)── POST           (via POST_TAG)
-                    │
-                    │(features)
-                    ▼
-                 PRODUCT
-              (via POST_PRODUCT)
+              ┌──────────────────────────────┐
+              │             USER             │
+              │   role: ENUM(admin, author)  │
+              │   email: UNIQUE              │
+              └──────┬──────────────┬────────┘
+                     │ 1            │ 1
+                  writes          leaves
+                     │ N            │ N
+                     ▼              ▼
+              ┌─────────────┐  ┌────────────────┐
+              │    POST     │  │    COMMENT     │
+              │  status:    │  │  category_id   │
+              │  ENUM       │  │  (FK)          │
+              │  (draft |   │  └───────┬────────┘
+              │  published) │          │ N
+              │  + media_url│    categorized by
+              │             │          │ 1
+              │             │          ▼
+              └──────┬──────┘  ┌────────────────┐
+                     │ N        │    CATEGORY    │
+              belongs│to        │  name: UNIQUE  │
+                     │ 1        └────────────────┘
+                     └──────────────────►(same CATEGORY)
 ```
 
 ---
 
 ### Key Takeaways
 
-- **POST is the central entity** — everything connects to it.
-- **USER has two roles**: as an author (writes posts) and as a reader (leaves comments).
-- **CATEGORY** is a strict 1:N grouping; **TAG** is a flexible M:N labelling system.
-- **PRODUCT** is the retail-specific addition — it links blog content to the store catalogue.
-- **Junction tables** (`POST_TAG`, `POST_PRODUCT`) resolve M:N relationships cleanly.
-
-```
-
-```
+- **4 core tables only**: USER, CATEGORY, POST, COMMENT — simplified from the original 9.
+- The schema has **4 core tables**: USER, CATEGORY, POST, and COMMENT.
+- **USER** supports two roles — `admin` and `author` — defined as an ENUM. Each user has a unique email address used for login.
+- **CATEGORY** groups posts and comments under a named topic. The category name is unique across the system.
+- **POST** is the central entity. It holds the blog content, publication status (`draft` or `published`), and an optional `media_url` for attaching an image or file.
+- **COMMENT** belongs to both a post and a category, allowing comments to be organized by topic as well as by the post they respond to.
+- Every table includes **full audit fields** — `created_at`, `created_by`, `updated_at`, and `updated_by` — to track who created and last modified each record.
+- All relationships in the schema are **1:N** — one user writes many posts, one post has many comments, one category groups many posts and comments.
