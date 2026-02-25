@@ -64,18 +64,6 @@ Organizes posts into broad topics (e.g., "Shoes", "Skincare Tips").
 
 ---
 
-### TAG
-
-Fine-grained labels attached to posts (e.g., "summer", "sale", "trending").
-
-| Attribute | Description                     |
-| --------- | ------------------------------- |
-| tag_id    | Unique identifier (Primary Key) |
-| name      | Tag label                       |
-| slug      | URL-friendly name               |
-
----
-
 ### COMMENT
 
 Reader responses on a published post, categorized directly via CATEGORY.
