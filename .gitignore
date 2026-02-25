@@ -1,0 +1,61 @@
+# ── Python ───────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+.Python
+
+# ── Virtual Environments ─────────────────────────────────────
+venv/
+env/
+.env/
+.venv/
+ENV/
+
+# ── Environment Variables ────────────────────────────────────
+.env
+.env.local
+.env.*.local
+*.env
+
+# ── FastAPI / Uvicorn ────────────────────────────────────────
+*.log
+uvicorn.log
+
+# ── PostgreSQL ───────────────────────────────────────────────
+*.sql.bak
+*.dump
+*.pgdump
+pg_data/
+
+# ── IDEs & Editors ───────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ── OS Files ─────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Testing & Coverage ───────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# ── Build & Distribution ─────────────────────────────────────
+dist/
+build/
+*.egg-info/
+.eggs/
+
+# ── Misc ─────────────────────────────────────────────────────
+*.bak
+*.tmp
+*.swp
