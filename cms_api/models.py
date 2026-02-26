@@ -16,11 +16,10 @@ class PostStatus(str, Enum):
 
 # ── USER ────────────────────────────────────────────────────
 class UserCreate(BaseModel):
-    username:      str
-    email:         EmailStr
-    password_hash: str
-    role:          UserRole = UserRole.author
-    created_by:    Optional[int] = None
+    username: str
+    email:    EmailStr
+    password: str
+    role:     UserRole = UserRole.author
 
     @field_validator("username")
     @classmethod
@@ -30,10 +29,9 @@ class UserCreate(BaseModel):
         return v.strip()
 
 class UserUpdate(BaseModel):
-    username:   Optional[str]      = None
-    email:      Optional[EmailStr] = None
-    role:       Optional[UserRole] = None
-    updated_by: Optional[int]      = None
+    username: Optional[str]      = None
+    email:    Optional[EmailStr] = None
+    role:     Optional[UserRole] = None
 
 class UserOut(BaseModel):
     user_id:    int
@@ -46,8 +44,7 @@ class UserOut(BaseModel):
 
 # ── CATEGORY ────────────────────────────────────────────────
 class CategoryCreate(BaseModel):
-    name:       str
-    created_by: Optional[int] = None
+    name: str
 
     @field_validator("name")
     @classmethod
@@ -57,8 +54,7 @@ class CategoryCreate(BaseModel):
         return v.strip()
 
 class CategoryUpdate(BaseModel):
-    name:       Optional[str] = None
-    updated_by: Optional[int] = None
+    name: Optional[str] = None
 
 class CategoryOut(BaseModel):
     category_id: int
@@ -73,9 +69,8 @@ class PostCreate(BaseModel):
     category_id: int
     title:       str
     body:        str
-    status:      PostStatus        = PostStatus.draft
-    media_url:   Optional[str]     = None
-    created_by:  Optional[int]     = None
+    status:      PostStatus    = PostStatus.draft
+    media_url:   Optional[str] = None
 
     @field_validator("title", "body")
     @classmethod
@@ -85,12 +80,11 @@ class PostCreate(BaseModel):
         return v.strip()
 
 class PostUpdate(BaseModel):
-    category_id: Optional[int]       = None
-    title:       Optional[str]       = None
-    body:        Optional[str]       = None
-    status:      Optional[PostStatus]= None
-    media_url:   Optional[str]       = None
-    updated_by:  Optional[int]       = None
+    category_id: Optional[int]        = None
+    title:       Optional[str]        = None
+    body:        Optional[str]        = None
+    status:      Optional[PostStatus] = None
+    media_url:   Optional[str]        = None
 
 class PostOut(BaseModel):
     post_id:      int
@@ -111,7 +105,6 @@ class CommentCreate(BaseModel):
     user_id:     int
     category_id: int
     body:        str
-    created_by:  Optional[int] = None
 
     @field_validator("body")
     @classmethod
@@ -123,7 +116,6 @@ class CommentCreate(BaseModel):
 class CommentUpdate(BaseModel):
     body:        Optional[str] = None
     category_id: Optional[int] = None
-    updated_by:  Optional[int] = None
 
 class CommentOut(BaseModel):
     comment_id:  int
