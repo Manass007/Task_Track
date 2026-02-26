@@ -15,7 +15,7 @@ ReDoc UI → http://localhost:8000/redoc
 
 ## Authentication
 
-> This version uses no auth token. `created_by` / `updated_by` are passed manually in the request body as the acting user's `user_id`. Auth middleware (JWT/OAuth2) can be layered on top in a future iteration.
+> This version uses no auth token. `created_by` and `updated_by` are passed as **URL query parameters** (not in request body). Auth middleware (JWT/OAuth2) can be layered on top in a future iteration.
 
 ---
 
@@ -35,7 +35,9 @@ ReDoc UI → http://localhost:8000/redoc
 
 ## 1. USER API `/users`
 
-### POST `/users/` — Create a user
+### POST `/users/?created_by={user_id}` — Create a user
+
+**URL:** `POST /users/?created_by=1` (created_by is optional, can be null)
 
 **Request Body**
 
@@ -43,9 +45,8 @@ ReDoc UI → http://localhost:8000/redoc
 {
   "username": "manas_admin",
   "email": "manas@example.com",
-  "password_hash": "hashed_password_string",
-  "role": "admin",
-  "created_by": null
+  "password": "your_password",
+  "role": "admin"
 }
 ```
 
@@ -100,10 +101,10 @@ GET /users/1
 
 ---
 
-### PATCH `/users/{user_id}` — Update a user
+### PATCH `/users/{user_id}?updated_by={user_id}` — Update a user
 
 ```
-PATCH /users/1
+PATCH /users/1?updated_by=1
 ```
 
 **Request Body** (all fields optional)
@@ -111,8 +112,7 @@ PATCH /users/1
 ```json
 {
   "username": "manas_updated",
-  "role": "author",
-  "updated_by": 1
+  "role": "author"
 }
 ```
 
@@ -133,14 +133,15 @@ DELETE /users/1
 
 ## 2. CATEGORY API `/categories`
 
-### POST `/categories/` — Create a category
+### POST `/categories/?created_by={user_id}` — Create a category
+
+**URL:** `POST /categories/?created_by=1`
 
 **Request Body**
 
 ```json
 {
-  "name": "Skincare Tips",
-  "created_by": 1
+  "name": "Skincare Tips"
 }
 ```
 
@@ -175,12 +176,17 @@ GET /categories/1
 
 ---
 
-### PATCH `/categories/{category_id}` — Update a category
+### PATCH `/categories/{category_id}?updated_by={user_id}` — Update a category
+
+```
+PATCH /categories/1?updated_by=1
+```
+
+**Request Body**
 
 ```json
 {
-  "name": "Hair Care",
-  "updated_by": 1
+  "name": "Hair Care"
 }
 ```
 
@@ -196,7 +202,9 @@ DELETE /categories/1
 
 ## 3. POST API `/posts`
 
-### POST `/posts/` — Create a post
+### POST `/posts/?created_by={user_id}` — Create a post
+
+**URL:** `POST /posts/?created_by=1`
 
 **Request Body**
 
@@ -207,8 +215,7 @@ DELETE /categories/1
   "title": "Top 5 Skincare Routines",
   "body": "Here are the top 5 routines recommended by dermatologists...",
   "status": "draft",
-  "media_url": "https://cdn.example.com/images/skincare.jpg",
-  "created_by": 1
+  "media_url": "https://cdn.example.com/images/skincare.jpg"
 }
 ```
 
@@ -256,10 +263,10 @@ GET /posts/1
 
 ---
 
-### PATCH `/posts/{post_id}` — Update / Publish a post
+### PATCH `/posts/{post_id}?updated_by={user_id}` — Update / Publish a post
 
 ```
-PATCH /posts/1
+PATCH /posts/1?updated_by=1
 ```
 
 **Request Body** (all fields optional)
@@ -267,8 +274,7 @@ PATCH /posts/1
 ```json
 {
   "status": "published",
-  "title": "Updated Title",
-  "updated_by": 1
+  "title": "Updated Title"
 }
 ```
 
@@ -288,7 +294,9 @@ DELETE /posts/1
 
 ## 4. COMMENT API `/comments`
 
-### POST `/comments/` — Create a comment
+### POST `/comments/?created_by={user_id}` — Create a comment
+
+**URL:** `POST /comments/?created_by=1`
 
 **Request Body**
 
@@ -297,8 +305,7 @@ DELETE /posts/1
   "post_id": 1,
   "user_id": 1,
   "category_id": 1,
-  "body": "Really helpful post, thanks!",
-  "created_by": 1
+  "body": "Really helpful post, thanks!"
 }
 ```
 
@@ -335,12 +342,17 @@ GET /comments/1
 
 ---
 
-### PATCH `/comments/{comment_id}` — Update a comment
+### PATCH `/comments/{comment_id}?updated_by={user_id}` — Update a comment
+
+```
+PATCH /comments/1?updated_by=1
+```
+
+**Request Body**
 
 ```json
 {
-  "body": "Updated comment text",
-  "updated_by": 1
+  "body": "Updated comment text"
 }
 ```
 
@@ -360,8 +372,11 @@ DELETE /comments/1
 
 1. Start the server: `uvicorn main:app --reload --port 8000`
 2. Open **http://localhost:8000/docs**
-3. Click any endpoint → click **"Try it out"** → fill in the body → click **"Execute"**
-4. Response appears directly on screen with status code
+3. Click any endpoint → click **"Try it out"**
+4. Fill in URL parameters (like `created_by=1`) in the Parameters section
+5. Fill in the request body in the Request Body section
+6. Click **"Execute"**
+7. Response appears directly on screen with status code
 
 ---
 
@@ -370,9 +385,9 @@ DELETE /comments/1
 **Create a user**
 
 ```bash
-curl -X POST http://localhost:8000/users/ \
+curl -X POST "http://localhost:8000/users/?created_by=1" \
   -H "Content-Type: application/json" \
-  -d "{\"username\":\"manas\",\"email\":\"manas@example.com\",\"password_hash\":\"abc123\",\"role\":\"admin\"}"
+  -d '{"username":"manas","email":"manas@example.com","password":"abc123","role":"admin"}'
 ```
 
 **Get all users**
@@ -384,45 +399,45 @@ curl http://localhost:8000/users/
 **Create a category**
 
 ```bash
-curl -X POST http://localhost:8000/categories/ \
+curl -X POST "http://localhost:8000/categories/?created_by=1" \
   -H "Content-Type: application/json" \
-  -d "{\"name\":\"Skincare Tips\",\"created_by\":1}"
+  -d '{"name":"Skincare Tips"}'
 ```
 
 **Create a post**
 
 ```bash
-curl -X POST http://localhost:8000/posts/ \
+curl -X POST "http://localhost:8000/posts/?created_by=1" \
   -H "Content-Type: application/json" \
-  -d "{\"user_id\":1,\"category_id\":1,\"title\":\"My First Post\",\"body\":\"Post content here\",\"status\":\"draft\",\"created_by\":1}"
+  -d '{"user_id":1,"category_id":1,"title":"My First Post","body":"Post content here","status":"draft"}'
 ```
 
 **Publish a post**
 
 ```bash
-curl -X PATCH http://localhost:8000/posts/1 \
+curl -X PATCH "http://localhost:8000/posts/1?updated_by=1" \
   -H "Content-Type: application/json" \
-  -d "{\"status\":\"published\",\"updated_by\":1}"
+  -d '{"status":"published"}'
 ```
 
 **Get published posts only**
 
 ```bash
-curl http://localhost:8000/posts/?status=published
+curl "http://localhost:8000/posts/?status=published"
 ```
 
 **Add a comment**
 
 ```bash
-curl -X POST http://localhost:8000/comments/ \
+curl -X POST "http://localhost:8000/comments/?created_by=1" \
   -H "Content-Type: application/json" \
-  -d "{\"post_id\":1,\"user_id\":1,\"category_id\":1,\"body\":\"Great post!\",\"created_by\":1}"
+  -d '{"post_id":1,"user_id":1,"category_id":1,"body":"Great post!"}'
 ```
 
 **Get all comments for a post**
 
 ```bash
-curl http://localhost:8000/comments/?post_id=1
+curl "http://localhost:8000/comments/?post_id=1"
 ```
 
 **Delete a post (cascades comments)**
@@ -439,21 +454,40 @@ curl -X DELETE http://localhost:8000/posts/1
 2. Create a new Collection called **CMS API**
 3. For each endpoint add a request:
    - Set method (GET / POST / PATCH / DELETE)
-   - Set URL e.g. `http://localhost:8000/users/`
+   - Set URL e.g. `http://localhost:8000/users/?created_by=1`
    - For POST/PATCH: go to **Body → raw → JSON** and paste the request body
 4. Click **Send**
 
 **Recommended test order in Postman:**
 
 ```
-1. POST /users/          → create admin user       (get user_id)
-2. POST /categories/     → create category         (get category_id)
-3. POST /posts/          → create post as draft     (get post_id)
-4. PATCH /posts/1        → publish the post
-5. POST /comments/       → add comment to post
-6. GET /comments/?post_id=1  → verify comment appears
-7. DELETE /comments/1    → delete comment
-8. DELETE /posts/1       → delete post + its comments
+1. POST /users/?created_by=1           → create admin user       (get user_id)
+2. POST /categories/?created_by=1      → create category         (get category_id)
+3. POST /posts/?created_by=1           → create post as draft     (get post_id)
+4. PATCH /posts/1?updated_by=1         → publish the post
+5. POST /comments/?created_by=1        → add comment to post
+6. GET /comments/?post_id=1            → verify comment appears
+7. DELETE /comments/1                  → delete comment
+8. DELETE /posts/1                     → delete post + its comments
+```
+
+---
+
+## Testing with Seed Data
+
+Since the database is already populated with seed data from `db-seed.sql`, you can:
+
+- **Use existing users:** IDs 1-12 are available (alice_admin, bob_admin, carol_author, etc.)
+- **Use existing categories:** IDs 1-12 are available (New Arrivals, Sale & Offers, etc.)
+- **Use existing posts:** IDs 1-12 are available
+- **Use existing comments:** IDs 1-12 are available
+
+**Example: Create a new post using existing data**
+
+```bash
+curl -X POST "http://localhost:8000/posts/?created_by=1" \
+  -H "Content-Type: application/json" \
+  -d '{"user_id":3,"category_id":1,"title":"New Spring Item","body":"Check out our latest arrivals!","status":"draft"}'
 ```
 
 ---
