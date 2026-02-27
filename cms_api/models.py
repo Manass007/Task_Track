@@ -16,10 +16,10 @@ class PostStatus(str, Enum):
 
 # ── USER ────────────────────────────────────────────────────
 class UserCreate(BaseModel):
-    username: str
-    email:    EmailStr
+    username:      str
+    email:         EmailStr
     password: str
-    role:     UserRole = UserRole.author
+    role:          UserRole = UserRole.author
 
     @field_validator("username")
     @classmethod
