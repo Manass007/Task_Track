@@ -1,110 +1,178 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
+from sqlalchemy.orm import Session
 from typing import Optional
-from config import get_conn
-from models import PostCreate, PostUpdate, PostOut, CommentCreate, CommentUpdate, CommentOut
 from datetime import datetime, timezone
+
+from database import get_db
+from models import (
+    PostCreate, PostUpdate, PostOut,
+    CommentCreate, CommentUpdate, CommentOut,
+    PostORM, CommentORM,
+    PostStatus
+)
 
 post_router    = APIRouter(prefix="/posts",    tags=["Posts"])
 comment_router = APIRouter(prefix="/comments", tags=["Comments"])
 
-NOW = lambda: datetime.now(timezone.utc)
 
-# ── POSTS ────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════
+#  POSTS
+# ══════════════════════════════════════════════════════════════
+
 @post_router.post("/", response_model=PostOut, status_code=201)
-def create_post(payload: PostCreate, created_by: Optional[int] = Query(default=None)):
-    pub = NOW() if payload.status == "published" else None
-    with get_conn() as conn, conn.cursor() as cur:
-        cur.execute(
-            """INSERT INTO post
-               (user_id,category_id,title,body,status,media_url,published_at,created_by,updated_by)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *""",
-            (payload.user_id, payload.category_id, payload.title, payload.body,
-             payload.status, payload.media_url, pub, created_by, created_by))
-        return dict(cur.fetchone())
+def create_post(
+    payload: PostCreate,
+    created_by: Optional[int] = Query(default=None),
+    db: Session = Depends(get_db)
+):
+    post = PostORM(
+        user_id      = payload.user_id,
+        category_id  = payload.category_id,
+        title        = payload.title,
+        body         = payload.body,
+        status       = payload.status,
+        media_url    = payload.media_url,
+        published_at = datetime.now(timezone.utc) if payload.status == PostStatus.published else None,
+        created_by   = created_by,
+        updated_by   = created_by,
+    )
+    db.add(post)
+    db.commit()
+    db.refresh(post)
+    return post
+
 
 @post_router.get("/", response_model=list[PostOut])
-def list_posts(status: Optional[str] = None):
-    with get_conn() as conn, conn.cursor() as cur:
-        if status:
-            cur.execute("SELECT * FROM post WHERE status=%s ORDER BY post_id", (status,))
-        else:
-            cur.execute("SELECT * FROM post ORDER BY post_id")
-        return [dict(r) for r in cur.fetchall()]
+def list_posts(
+    status: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(PostORM)
+    if status:
+        query = query.filter(PostORM.status == status)
+    return query.order_by(PostORM.post_id).all()
+
 
 @post_router.get("/{post_id}", response_model=PostOut)
-def get_post(post_id: int):
-    with get_conn() as conn, conn.cursor() as cur:
-        cur.execute("SELECT * FROM post WHERE post_id=%s", (post_id,))
-        row = cur.fetchone()
-        if not row: raise HTTPException(404, "Post not found")
-        return dict(row)
+def get_post(post_id: int, db: Session = Depends(get_db)):
+    post = db.query(PostORM).filter(PostORM.post_id == post_id).first()
+    if not post:
+        raise HTTPException(404, "Post not found")
+    return post
+
 
 @post_router.patch("/{post_id}", response_model=PostOut)
-def update_post(post_id: int, payload: PostUpdate, updated_by: Optional[int] = Query(default=None)):
-    fields = {k: v for k, v in payload.model_dump().items() if v is not None}
-    if not fields: raise HTTPException(400, "No fields to update")
-    if fields.get("status") == "published":
-        fields["published_at"] = NOW()
-    fields["updated_at"] = NOW()
-    fields["updated_by"] = updated_by
-    cols = ", ".join(f"{k}=%s" for k in fields)
-    with get_conn() as conn, conn.cursor() as cur:
-        cur.execute(f"UPDATE post SET {cols} WHERE post_id=%s RETURNING *",
-                    (*fields.values(), post_id))
-        row = cur.fetchone()
-        if not row: raise HTTPException(404, "Post not found")
-        return dict(row)
+def update_post(
+    post_id: int,
+    payload: PostUpdate,
+    updated_by: Optional[int] = Query(default=None),
+    db: Session = Depends(get_db)
+):
+    post = db.query(PostORM).filter(PostORM.post_id == post_id).first()
+    if not post:
+        raise HTTPException(404, "Post not found")
+
+    fields = payload.model_dump(exclude_none=True)
+    if not fields:
+        raise HTTPException(400, "No fields to update")
+
+    for key, value in fields.items():
+        setattr(post, key, value)
+
+    # if status is being changed to published, stamp published_at
+    if fields.get("status") == PostStatus.published and not post.published_at:
+        post.published_at = datetime.now(timezone.utc)
+
+    post.updated_by = updated_by
+    post.updated_at = datetime.now(timezone.utc)
+
+    db.commit()
+    db.refresh(post)
+    return post
+
 
 @post_router.delete("/{post_id}", status_code=204)
-def delete_post(post_id: int):
-    with get_conn() as conn, conn.cursor() as cur:
-        cur.execute("DELETE FROM post WHERE post_id=%s", (post_id,))
-        if cur.rowcount == 0: raise HTTPException(404, "Post not found")
+def delete_post(post_id: int, db: Session = Depends(get_db)):
+    post = db.query(PostORM).filter(PostORM.post_id == post_id).first()
+    if not post:
+        raise HTTPException(404, "Post not found")
+    db.delete(post)
+    db.commit()
 
-# ── COMMENTS ─────────────────────────────────────────────────
+
+# ══════════════════════════════════════════════════════════════
+#  COMMENTS
+# ══════════════════════════════════════════════════════════════
+
 @comment_router.post("/", response_model=CommentOut, status_code=201)
-def create_comment(payload: CommentCreate, created_by: Optional[int] = Query(default=None)):
-    with get_conn() as conn, conn.cursor() as cur:
-        cur.execute(
-            """INSERT INTO comment (post_id,user_id,category_id,body,created_by,updated_by)
-               VALUES (%s,%s,%s,%s,%s,%s) RETURNING *""",
-            (payload.post_id, payload.user_id, payload.category_id,
-             payload.body, created_by, created_by))
-        return dict(cur.fetchone())
+def create_comment(
+    payload: CommentCreate,
+    created_by: Optional[int] = Query(default=None),
+    db: Session = Depends(get_db)
+):
+    comment = CommentORM(
+        post_id     = payload.post_id,
+        user_id     = payload.user_id,
+        category_id = payload.category_id,
+        body        = payload.body,
+        created_by  = created_by,
+        updated_by  = created_by,
+    )
+    db.add(comment)
+    db.commit()
+    db.refresh(comment)
+    return comment
+
 
 @comment_router.get("/", response_model=list[CommentOut])
-def list_comments(post_id: Optional[int] = None):
-    with get_conn() as conn, conn.cursor() as cur:
-        if post_id:
-            cur.execute("SELECT * FROM comment WHERE post_id=%s ORDER BY comment_id", (post_id,))
-        else:
-            cur.execute("SELECT * FROM comment ORDER BY comment_id")
-        return [dict(r) for r in cur.fetchall()]
+def list_comments(
+    post_id: Optional[int] = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(CommentORM)
+    if post_id:
+        query = query.filter(CommentORM.post_id == post_id)
+    return query.order_by(CommentORM.comment_id).all()
+
 
 @comment_router.get("/{comment_id}", response_model=CommentOut)
-def get_comment(comment_id: int):
-    with get_conn() as conn, conn.cursor() as cur:
-        cur.execute("SELECT * FROM comment WHERE comment_id=%s", (comment_id,))
-        row = cur.fetchone()
-        if not row: raise HTTPException(404, "Comment not found")
-        return dict(row)
+def get_comment(comment_id: int, db: Session = Depends(get_db)):
+    comment = db.query(CommentORM).filter(CommentORM.comment_id == comment_id).first()
+    if not comment:
+        raise HTTPException(404, "Comment not found")
+    return comment
+
 
 @comment_router.patch("/{comment_id}", response_model=CommentOut)
-def update_comment(comment_id: int, payload: CommentUpdate, updated_by: Optional[int] = Query(default=None)):
-    fields = {k: v for k, v in payload.model_dump().items() if v is not None}
-    if not fields: raise HTTPException(400, "No fields to update")
-    fields["updated_at"] = NOW()
-    fields["updated_by"] = updated_by
-    cols = ", ".join(f"{k}=%s" for k in fields)
-    with get_conn() as conn, conn.cursor() as cur:
-        cur.execute(f"UPDATE comment SET {cols} WHERE comment_id=%s RETURNING *",
-                    (*fields.values(), comment_id))
-        row = cur.fetchone()
-        if not row: raise HTTPException(404, "Comment not found")
-        return dict(row)
+def update_comment(
+    comment_id: int,
+    payload: CommentUpdate,
+    updated_by: Optional[int] = Query(default=None),
+    db: Session = Depends(get_db)
+):
+    comment = db.query(CommentORM).filter(CommentORM.comment_id == comment_id).first()
+    if not comment:
+        raise HTTPException(404, "Comment not found")
+
+    fields = payload.model_dump(exclude_none=True)
+    if not fields:
+        raise HTTPException(400, "No fields to update")
+
+    for key, value in fields.items():
+        setattr(comment, key, value)
+
+    comment.updated_by = updated_by
+    comment.updated_at = datetime.now(timezone.utc)
+
+    db.commit()
+    db.refresh(comment)
+    return comment
+
 
 @comment_router.delete("/{comment_id}", status_code=204)
-def delete_comment(comment_id: int):
-    with get_conn() as conn, conn.cursor() as cur:
-        cur.execute("DELETE FROM comment WHERE comment_id=%s", (comment_id,))
-        if cur.rowcount == 0: raise HTTPException(404, "Comment not found")
+def delete_comment(comment_id: int, db: Session = Depends(get_db)):
+    comment = db.query(CommentORM).filter(CommentORM.comment_id == comment_id).first()
+    if not comment:
+        raise HTTPException(404, "Comment not found")
+    db.delete(comment)
+    db.commit()
